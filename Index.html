@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Портфолио тортов ручной работы</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="site-header">
+
+    <h1>Торты от Веры</h1>
+
+    <button
+        id="themeToggle"
+        class="theme-toggle"
+        aria-label="Переключить тему"
+    >
+        🌙
+    </button>
+    </header>
+
+
+    <div class="header-divider"></div>
+
+   <div class="search-container">
+    <input
+        type="text"
+        id="search"
+        class="search-input"
+        placeholder="Поиск по названию..."
+    >
+    </div>
+  
+    <section class="filters">
+    </section>
+
+    <section class="gallery" id="gallery">
+    </section>
+
+    <div class="load-more-container">
+        <button id="loadMoreBtn" class="load-more-btn">Загрузить ещё</button>
+    </div>
+
+    <div class="footer-divider"></div>
+
+    <footer class="site-footer">
+    <button class="disclaimer-btn" id="disclaimerBtn">Нажми на меня</button>
+
+    <div class="disclaimer-popup" id="disclaimerPopup">
+        <p>Изображения, содержащиеся на этой странице созданы с помощью искусственного интеллекта/The images contained on this page were created using artificial intelligence.</p>
+        <span class="popup-close" id="popupClose">&times;</span>
+    </div>
+</footer>
+
+    <div class="modal" id="modal">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modal-img">
+        <div id="modal-caption"></div>
+        <div class="modal-nav">
+            <button class="modal-prev" id="modalPrev">←</button>
+            <span class="modal-counter" id="modalCounter"></span>
+            <button class="modal-next" id="modalNext">→</button>
+        </div>
+    </div>
+
+    <button
+        id="scrollToTop"
+        class="scroll-top"
+        title="Наверх"
+        aria-label="Прокрутить наверх"
+    >
+    ↑
+    </button>
+
+    <script src="cakes.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
