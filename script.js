@@ -12,6 +12,12 @@ let activeFilterResults = [];
 let searchTimeout;
 let touchStartX = 0;
 let touchEndX = 0;
+let masonryFrame;
+let featuredCakes = [];
+let featuredIndex = 0;
+let featuredAutoTimer;
+let featuredDragStartX = null;
+let featuredDragged = false;
 
 
 const galleryEl = document.getElementById('gallery');
@@ -23,6 +29,47 @@ const closeBtn = document.querySelector('.modal-close');
 const searchInput = document.getElementById('search');
 const loadMoreBtn = document.getElementById('loadMoreBtn');
 const themeToggle = document.getElementById('themeToggle');
+const featuredGallery = document.getElementById('featuredGallery');
+const pagePanels = document.querySelectorAll('.page-panel');
+const navLinks = document.querySelectorAll('.nav-link');
+
+
+function updateMasonryLayout() {
+    const styles = getComputedStyle(galleryEl);
+    const gap = parseFloat(styles.getPropertyValue('--gallery-gap')) || 20;
+    const minItemWidth = 280;
+    const paddingTop = parseFloat(styles.paddingTop);
+    const paddingRight = parseFloat(styles.paddingRight);
+    const paddingBottom = parseFloat(styles.paddingBottom);
+    const paddingLeft = parseFloat(styles.paddingLeft);
+    const galleryWidth = galleryEl.clientWidth - paddingLeft - paddingRight;
+
+    if (!galleryWidth) return;
+
+    const columnCount = Math.max(
+        1,
+        Math.floor((galleryWidth + gap) / (minItemWidth + gap))
+    );
+    const itemWidth = (galleryWidth - gap * (columnCount - 1)) / columnCount;
+    const columnHeights = Array(columnCount).fill(0);
+
+    galleryEl.querySelectorAll('.gallery-item').forEach(item => {
+        const shortestColumn = columnHeights.indexOf(Math.min(...columnHeights));
+        item.style.width = `${itemWidth}px`;
+        item.style.left = `${paddingLeft + shortestColumn * (itemWidth + gap)}px`;
+        item.style.top = `${paddingTop + columnHeights[shortestColumn]}px`;
+
+        columnHeights[shortestColumn] += item.getBoundingClientRect().height + gap;
+    });
+
+    const contentHeight = Math.max(0, Math.max(...columnHeights) - gap);
+    galleryEl.style.height = `${paddingTop + contentHeight + paddingBottom}px`;
+}
+
+function scheduleMasonryLayout() {
+    cancelAnimationFrame(masonryFrame);
+    masonryFrame = requestAnimationFrame(updateMasonryLayout);
+}
 
 
 
@@ -35,13 +82,20 @@ function createGalleryItem(cake) {
 
     const img = document.createElement('img');
 
-    img.src = cake.thumb;
     img.alt = cake.title;
     img.loading = 'lazy';
 
     img.addEventListener('load', () => {
         skeleton.remove();
+        scheduleMasonryLayout();
     });
+
+    img.addEventListener('error', () => {
+        skeleton.remove();
+        scheduleMasonryLayout();
+    });
+
+    img.src = cake.thumb;
 
     item.appendChild(skeleton);
 
@@ -127,8 +181,160 @@ function loadMore() {
     galleryEl.appendChild(fragment);
 
 displayedCount += countToAdd;
+scheduleMasonryLayout();
 updateLoadMoreButton();
-updateResultsCounter();
+}
+
+function initFeaturedGallery() {
+    if (!featuredGallery) return;
+
+    const featuredImageNames = [
+        '2026_43', '2026_38', '2026_27', '2026_01', '2025_61', '2025_16',
+        '2025_12', '2024_66', '2024_38', '2024_30', '2025_25', '2024_26',
+        '2023_115', '2023_092', '2023_085', '2023_063', '2023_042', '2023_008'
+    ];
+    featuredCakes = featuredImageNames
+        .map(name => cakes.find(cake => cake.src === `Images/${name}.webp`))
+        .filter(Boolean);
+    const fragment = document.createDocumentFragment();
+
+    featuredCakes.forEach((cake, index) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'featured-card';
+        card.setAttribute('aria-label', `Открыть: ${cake.title}`);
+
+        const image = document.createElement('img');
+        image.alt = cake.title;
+        image.loading = 'lazy';
+        image.addEventListener('load', () => {
+            card.dataset.aspect = String(image.naturalWidth / image.naturalHeight);
+            renderFeaturedCarousel();
+        });
+        image.src = cake.thumb;
+
+        const label = document.createElement('span');
+        label.className = 'featured-card-label';
+        label.textContent = cake.title;
+
+        card.append(image, label);
+        card.addEventListener('click', () => {
+            if (featuredDragged) return;
+            if (index !== featuredIndex) {
+                setFeaturedIndex(index);
+                return;
+            }
+
+            filteredCakes = featuredCakes;
+            openModalByIndex(featuredIndex);
+        });
+        fragment.appendChild(card);
+    });
+
+    featuredGallery.replaceChildren(fragment);
+    featuredGallery.addEventListener('pointerdown', startFeaturedDrag);
+    featuredGallery.addEventListener('pointerup', endFeaturedDrag);
+    featuredGallery.addEventListener('pointercancel', endFeaturedDrag);
+    featuredGallery.addEventListener('pointerenter', stopFeaturedAutoplay);
+    featuredGallery.addEventListener('pointerleave', () => {
+        if (document.getElementById('featured').classList.contains('active')) startFeaturedAutoplay();
+    });
+    renderFeaturedCarousel();
+}
+
+function getFeaturedOffset(index) {
+    const count = featuredCakes.length;
+    let offset = index - featuredIndex;
+    if (offset > count / 2) offset -= count;
+    if (offset < -count / 2) offset += count;
+    return offset;
+}
+
+function renderFeaturedCarousel() {
+    if (!featuredGallery || !featuredCakes.length) return;
+    const spacing = Math.min(featuredGallery.clientWidth * .22, 285);
+    const maxWidth = Math.min(featuredGallery.clientWidth * .44, 590);
+    const maxHeight = featuredGallery.clientHeight - 24;
+
+    featuredGallery.querySelectorAll('.featured-card').forEach((card, index) => {
+        const offset = getFeaturedOffset(index);
+        const distance = Math.abs(offset);
+        const isVisible = distance <= 4;
+        const aspect = Number(card.dataset.aspect) || 1;
+        const width = Math.min(maxWidth, maxHeight * aspect);
+        const height = width / aspect;
+        card.style.setProperty('--card-x', `${offset * spacing}px`);
+        card.style.setProperty('--card-width', `${width}px`);
+        card.style.setProperty('--card-height', `${height}px`);
+        card.style.setProperty('--card-scale', `${Math.max(.4, 1 - distance * .16)}`);
+        card.style.setProperty('--card-opacity', `${isVisible ? 1 : 0}`);
+        card.style.setProperty('--card-layer', `${20 - distance}`);
+        card.style.setProperty('--card-events', isVisible ? 'auto' : 'none');
+        card.classList.toggle('is-current', distance === 0);
+        card.setAttribute('aria-hidden', String(!isVisible));
+    });
+}
+
+function setFeaturedIndex(index) {
+    featuredIndex = (index + featuredCakes.length) % featuredCakes.length;
+    renderFeaturedCarousel();
+}
+
+function nextFeatured() { setFeaturedIndex(featuredIndex + 1); }
+function previousFeatured() { setFeaturedIndex(featuredIndex - 1); }
+
+function stopFeaturedAutoplay() {
+    clearInterval(featuredAutoTimer);
+    featuredAutoTimer = undefined;
+}
+
+function startFeaturedAutoplay() {
+    stopFeaturedAutoplay();
+    if (featuredCakes.length) featuredAutoTimer = setInterval(nextFeatured, 6000);
+}
+
+function startFeaturedDrag(event) {
+    featuredDragStartX = event.clientX;
+    featuredDragged = false;
+    featuredGallery.classList.add('is-dragging');
+    featuredGallery.setPointerCapture?.(event.pointerId);
+    stopFeaturedAutoplay();
+}
+
+function endFeaturedDrag(event) {
+    if (featuredDragStartX === null) return;
+    const distance = event.clientX - featuredDragStartX;
+    featuredDragged = Math.abs(distance) > 8;
+    featuredDragStartX = null;
+    featuredGallery.classList.remove('is-dragging');
+    if (distance > 35) previousFeatured();
+    if (distance < -35) nextFeatured();
+    window.setTimeout(() => { featuredDragged = false; }, 0);
+    if (document.getElementById('featured').classList.contains('active')) startFeaturedAutoplay();
+}
+
+function showPage(pageId, updateHash = true) {
+    const target = document.getElementById(pageId);
+    if (!target || !target.classList.contains('page-panel')) return;
+
+    pagePanels.forEach(panel => panel.classList.toggle('active', panel === target));
+    navLinks.forEach(link => {
+        const isActive = link.dataset.page === pageId;
+        link.classList.toggle('active', isActive);
+        link.setAttribute('aria-current', isActive ? 'page' : 'false');
+    });
+
+    if (updateHash) {
+        history.replaceState(null, '', pageId === 'home' ? location.pathname : `#${pageId}`);
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (pageId === 'home') scheduleMasonryLayout();
+    if (pageId === 'featured') {
+        renderFeaturedCarousel();
+        startFeaturedAutoplay();
+    }
+    else stopFeaturedAutoplay();
 }
 
 function updateLoadMoreButton() {
@@ -137,13 +343,6 @@ function updateLoadMoreButton() {
         loadMoreBtn.classList.add('hidden');
     } else {
         loadMoreBtn.classList.remove('hidden');
-    }
-}
-
-function updateResultsCounter() {
-    const counterEl = document.getElementById('resultsCounter');
-    if (counterEl) {
-        counterEl.textContent = `Показано ${displayedCount} из ${filteredCakes.length} работ`;
     }
 }
 
@@ -172,7 +371,6 @@ function applyFilter(filterValue) {
 
     loadMore();
     updateLoadMoreButton();
-    updateResultsCounter();
 }
 
 function getUniqueFilters() {
@@ -220,17 +418,23 @@ function openModalByIndex(index) {
     modalImg.src = cake.src;
     modalImg.alt = cake.title;
 
-    let captionHTML = `
-        <h2>${cake.title}</h2>
-        <p>${cake.description}</p>
-        <p>Год: ${cake.year}</p>
-    `;
+    const title = document.createElement('h2');
+    title.textContent = cake.title;
+
+    const description = document.createElement('p');
+    description.textContent = cake.description;
+
+    const year = document.createElement('p');
+    year.textContent = `Год: ${cake.year}`;
+
+    modalCaption.replaceChildren(title, description, year);
 
     if (cake.filling) {
-        captionHTML += `<p class="cake-filling">Состав/начинка: ${cake.filling}</p>`;
+        const filling = document.createElement('p');
+        filling.className = 'cake-filling';
+        filling.textContent = `Состав/начинка: ${cake.filling}`;
+        modalCaption.appendChild(filling);
     }
-
-    modalCaption.innerHTML = captionHTML;
     updateModalNav();
 }
 
@@ -262,7 +466,6 @@ if (searchInput) {
 
                 loadMore();
                 updateLoadMoreButton();
-                updateResultsCounter();
             }
         }, 325);
     });
@@ -289,6 +492,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initFilters();
     applyFilter('all');
+    initFeaturedGallery();
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => showPage(link.dataset.page));
+    });
+
+    const initialPage = location.hash.slice(1);
+    if (initialPage && document.getElementById(initialPage)) {
+        showPage(initialPage, false);
+    }
 
     const allBtn = document.querySelector('[data-filter="all"]');
     if (allBtn) allBtn.classList.add('active');
@@ -329,6 +542,14 @@ window.addEventListener('keydown', (e) => {
         }
     }
 });
+
+window.addEventListener('hashchange', () => {
+    const pageId = location.hash.slice(1) || 'home';
+    showPage(pageId, false);
+});
+
+window.addEventListener('resize', scheduleMasonryLayout);
+window.addEventListener('resize', renderFeaturedCarousel);
 
 const scrollBtn = document.getElementById('scrollToTop');
 

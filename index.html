@@ -12,7 +12,14 @@
 <body>
     <header class="site-header">
 
-    <h1>Торты от Веры</h1>
+    <div class="brand">
+        <h1>Торты от Веры</h1>
+        <nav class="site-nav" aria-label="Разделы сайта">
+            <button class="nav-link active" type="button" data-page="home">Главная</button>
+            <button class="nav-link" type="button" data-page="featured">Лучшие работы</button>
+            <button class="nav-link" type="button" data-page="fillings">Начинки</button>
+        </nav>
+    </div>
 
     <button
         id="themeToggle"
@@ -26,24 +33,41 @@
 
     <div class="header-divider"></div>
 
-   <div class="search-container">
-    <input
-        type="text"
-        id="search"
-        class="search-input"
-        placeholder="Поиск по названию..."
-    >
-    </div>
-  
-    <section class="filters">
-    </section>
+    <main>
+        <section class="page-panel active" id="home" aria-labelledby="home-title">
+            <h2 class="sr-only" id="home-title">Портфолио тортов</h2>
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="search"
+                    class="search-input"
+                    placeholder="Поиск по названию..."
+                >
+            </div>
+          
+            <section class="filters"></section>
 
-    <section class="gallery" id="gallery">
-    </section>
+            <section class="gallery" id="gallery"></section>
 
-    <div class="load-more-container">
-        <button id="loadMoreBtn" class="load-more-btn">Загрузить ещё</button>
-    </div>
+            <div class="load-more-container">
+                <button id="loadMoreBtn" class="load-more-btn">Загрузить ещё</button>
+            </div>
+        </section>
+
+        <section class="page-panel featured-page" id="featured" aria-labelledby="featured-title">
+            <div class="section-intro">
+                <p id="featured-title">Коллекция моих любимых работ</p>
+            </div>
+            <section class="featured-gallery" id="featuredGallery" aria-label="Галерея лучших работ"></section>
+        </section>
+
+        <section class="page-panel fillings-page" id="fillings" aria-labelledby="fillings-title">
+            <div class="coming-soon">
+                <h2 id="fillings-title">Раздел скоро появится...</h2>
+                <p>Здесь будут фотографии начинок и подробные описания каждой из них.</p>
+            </div>
+        </section>
+    </main>
 
     <div class="footer-divider"></div>
 
