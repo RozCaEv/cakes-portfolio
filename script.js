@@ -252,8 +252,9 @@ function getFeaturedOffset(index) {
 
 function renderFeaturedCarousel() {
     if (!featuredGallery || !featuredCakes.length) return;
-    const spacing = Math.min(featuredGallery.clientWidth * .22, 285);
-    const maxWidth = Math.min(featuredGallery.clientWidth * .44, 590);
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    const spacing = Math.min(featuredGallery.clientWidth * (isMobile ? .3 : .22), 285);
+    const maxWidth = Math.min(featuredGallery.clientWidth * (isMobile ? .68 : .44), isMobile ? 390 : 590);
     const maxHeight = featuredGallery.clientHeight - 24;
 
     featuredGallery.querySelectorAll('.featured-card').forEach((card, index) => {
@@ -472,15 +473,16 @@ if (searchInput) {
 }
 
 
-closeBtn.addEventListener('click', () => {
+function closeModal() {
     modal.classList.remove('open');
     document.body.style.overflow = '';
-});
+}
 
-window.addEventListener('click', (e) => {
+closeBtn.addEventListener('click', closeModal);
+
+modal.addEventListener('click', (e) => {
     if (e.target === modal) {
-        modal.classList.remove('open');
-        document.body.style.overflow = '';
+        closeModal();
     }
 });
 
@@ -537,8 +539,7 @@ window.addEventListener('keydown', (e) => {
         } else if (e.key === 'ArrowRight') {
             nextPhoto();
         } else if (e.key === 'Escape') {
-            modal.classList.remove('open');
-            document.body.style.overflow = '';
+            closeModal();
         }
     }
 });
