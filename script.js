@@ -8,11 +8,16 @@ let filteredCakes = [];
 let displayedCount = 0;
 let currentFilter = 'all';
 let currentIndex = 0;
+let modalImageRequestId = 0;
 let activeFilterResults = [];
 let searchTimeout;
 let touchStartX = 0;
 let touchEndX = 0;
 let masonryFrame;
+let isLoadingMore = false;
+let galleryContentVersion = 0;
+let loadRequestId = 0;
+const preloadedThumbs = new Map();
 let featuredCakes = [];
 let featuredIndex = 0;
 let featuredAutoTimer;
@@ -73,31 +78,11 @@ function scheduleMasonryLayout() {
 
 
 
-function createGalleryItem(cake) {
+function createGalleryItem(cake, img) {
     const item = document.createElement('div');
     item.className = 'gallery-item';
 
-    const skeleton = document.createElement('div');
-    skeleton.className = 'skeleton';
-
-    const img = document.createElement('img');
-
     img.alt = cake.title;
-    img.loading = 'lazy';
-
-    img.addEventListener('load', () => {
-        skeleton.remove();
-        scheduleMasonryLayout();
-    });
-
-    img.addEventListener('error', () => {
-        skeleton.remove();
-        scheduleMasonryLayout();
-    });
-
-    img.src = cake.thumb;
-
-    item.appendChild(skeleton);
 
     img.dataset.id = cake.id;
 
@@ -119,6 +104,39 @@ function createGalleryItem(cake) {
     });
 
     return item;
+}
+
+function preloadThumbnail(cake) {
+    if (preloadedThumbs.has(cake.id)) {
+        return preloadedThumbs.get(cake.id);
+    }
+
+    const imagePromise = new Promise(resolve => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = async () => {
+            try {
+                await image.decode?.();
+            } catch {
+                // Изображение уже доступно для показа, даже если decode недоступен.
+            }
+            resolve(image);
+        };
+        image.onerror = () => resolve(image);
+        image.src = cake.thumb;
+    });
+
+    preloadedThumbs.set(cake.id, imagePromise);
+    return imagePromise;
+}
+
+function prefetchNextBatch() {
+    const nextCakes = filteredCakes.slice(
+        displayedCount,
+        displayedCount + PHOTOS_PER_PAGE
+    );
+
+    nextCakes.forEach(preloadThumbnail);
 }
 
 function nextPhoto() {
@@ -165,24 +183,48 @@ function updateModalNav() {
     }
 }
 
-function loadMore() {
+async function loadMore() {
+    if (isLoadingMore) return;
+
     const remaining = filteredCakes.length - displayedCount;
     if (remaining <= 0) return;
 
     const countToAdd = Math.min(PHOTOS_PER_PAGE, remaining);
     const itemsToAdd = filteredCakes.slice(displayedCount, displayedCount + countToAdd);
+    const requestVersion = galleryContentVersion;
+    const requestId = ++loadRequestId;
+
+    isLoadingMore = true;
+    if (loadMoreBtn) {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Подготавливаем работы...';
+    }
+
+    const images = await Promise.all(itemsToAdd.map(preloadThumbnail));
+
+    if (requestVersion !== galleryContentVersion || requestId !== loadRequestId) {
+        if (requestId === loadRequestId) {
+            isLoadingMore = false;
+            updateLoadMoreButton();
+        }
+        return;
+    }
 
     const fragment = document.createDocumentFragment();
 
-    itemsToAdd.forEach(cake => {
-    fragment.appendChild(createGalleryItem(cake));
-  });
+    itemsToAdd.forEach((cake, index) => {
+        fragment.appendChild(createGalleryItem(cake, images[index]));
+    });
 
     galleryEl.appendChild(fragment);
 
-displayedCount += countToAdd;
-scheduleMasonryLayout();
-updateLoadMoreButton();
+    displayedCount += countToAdd;
+    updateMasonryLayout();
+    prefetchNextBatch();
+    if (requestId === loadRequestId) {
+        isLoadingMore = false;
+    }
+    updateLoadMoreButton();
 }
 
 function initFeaturedGallery() {
@@ -340,6 +382,15 @@ function showPage(pageId, updateHash = true) {
 
 function updateLoadMoreButton() {
     if (!loadMoreBtn) return;
+
+    if (isLoadingMore) {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Подготавливаем работы...';
+        return;
+    }
+
+    loadMoreBtn.disabled = false;
+    loadMoreBtn.textContent = 'Загрузить ещё';
     if (displayedCount >= filteredCakes.length) {
         loadMoreBtn.classList.add('hidden');
     } else {
@@ -349,6 +400,9 @@ function updateLoadMoreButton() {
 
 function applyFilter(filterValue) {
     currentFilter = filterValue;
+    galleryContentVersion += 1;
+    loadRequestId += 1;
+    isLoadingMore = false;
 
     if (filterValue === 'all') {
 
@@ -416,8 +470,21 @@ function openModalByIndex(index) {
 
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
-    modalImg.src = cake.src;
+    const imageRequestId = ++modalImageRequestId;
+    modalImg.classList.remove('is-ready');
+    modalImg.removeAttribute('src');
     modalImg.alt = cake.title;
+    modalImg.onload = () => {
+        if (imageRequestId === modalImageRequestId) {
+            modalImg.classList.add('is-ready');
+        }
+    };
+    modalImg.onerror = () => {
+        if (imageRequestId === modalImageRequestId) {
+            modalImg.classList.add('is-ready');
+        }
+    };
+    modalImg.src = cake.src;
 
     const title = document.createElement('h2');
     title.textContent = cake.title;
@@ -462,6 +529,9 @@ if (searchInput) {
 
                 filteredCakes = searchResults;
                 displayedCount = 0;
+                galleryContentVersion += 1;
+                loadRequestId += 1;
+                isLoadingMore = false;
 
                 galleryEl.replaceChildren();
 
@@ -474,6 +544,9 @@ if (searchInput) {
 
 
 function closeModal() {
+    modalImageRequestId += 1;
+    modalImg.classList.remove('is-ready');
+    modalImg.removeAttribute('src');
     modal.classList.remove('open');
     document.body.style.overflow = '';
 }
